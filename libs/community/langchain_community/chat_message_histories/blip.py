@@ -1,19 +1,12 @@
 from __future__ import annotations
-
 import asyncio
 import json
-from typing import Any
-from typing import Optional
-from typing import TYPE_CHECKING
-from typing import Union
-
+from typing import Any, Optional, TYPE_CHECKING, Union
 from langchain_community.utilities.blip import BlipClientWrapper
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.language_models import LanguageModelLike
 from langchain_core.messages import BaseMessage, convert_to_messages
-from langchain_core.runnables import ConfigurableFieldSpec
-from langchain_core.runnables import Runnable
-from langchain_core.runnables import RunnableWithMessageHistory
+from langchain_core.runnables import ConfigurableFieldSpec, Runnable, RunnableWithMessageHistory
 from langchain_core.runnables.history import MessagesOrDictWithMessages
 
 if TYPE_CHECKING:
@@ -21,14 +14,24 @@ if TYPE_CHECKING:
 
 
 class BlipMessageHistory(BaseChatMessageHistory):
-    """Chat message history stored using Blip User's Context variables."""
+    """
+    Chat message history stored using Blip User's Context variables.
 
-    def __init__(
-            self,
-            client: BlipClientWrapper,
-            session_id: Identity,
-            variable_name: str = "chat_history",
-    ):
+    Attributes:
+        client (BlipClientWrapper): The client wrapper for interacting with Blip.
+        session_id (Identity): The session identifier for the user.
+        variable_name (str): The name of the variable where chat history is stored.
+    """
+
+    def __init__(self, client: BlipClientWrapper, session_id: Identity, variable_name: str = "chat_history"):
+        """
+        Initialize the BlipMessageHistory.
+
+        Args:
+            client (BlipClientWrapper): The client wrapper for interacting with Blip.
+            session_id (Identity): The session identifier for the user.
+            variable_name (str, optional): The name of the variable where chat history is stored. Defaults to "chat_history".
+        """
         self.client = client
         self.session_id = session_id
         self.variable_name = variable_name
@@ -36,19 +39,33 @@ class BlipMessageHistory(BaseChatMessageHistory):
 
     @property
     def messages(self):
+        """
+        Retrieve all messages from Blip.
+
+        Returns:
+            list[BaseMessage]: List of chat messages.
+        """
         loop = asyncio.get_event_loop()
         if loop.is_running():
             return loop.run_until_complete(self.aget_messages())
         return self.get_messages()
 
     def get_messages(self) -> list[BaseMessage]:
-        """Retrieve all messages from Blip"""
-        return asyncio.run_coroutine_threadsafe(
-            self.aget_messages(), self.loop
-        ).result()
+        """
+        Retrieve all messages from Blip synchronously.
+
+        Returns:
+            list[BaseMessage]: List of chat messages.
+        """
+        return asyncio.run_coroutine_threadsafe(self.aget_messages(), self.loop).result()
 
     async def aget_messages(self) -> list[BaseMessage]:
-        """Retrieve all messages from Blip asynchronously"""
+        """
+        Retrieve all messages from Blip asynchronously.
+
+        Returns:
+            list[BaseMessage]: List of chat messages.
+        """
         try:
             from lime_python import Command, CommandStatus, ReasonCode, CommandMethod
         except (ImportError, ModuleNotFoundError):
@@ -68,30 +85,36 @@ class BlipMessageHistory(BaseChatMessageHistory):
         ):
             return []
         if response.status == CommandStatus.FAILURE:
-            raise Exception(
-                f"Failed requesting context variable {self.variable_name} for {self.session_id}"
-            )
+            raise Exception(f"Failed requesting context variable {self.variable_name} for {self.session_id}")
         return convert_to_messages(json.loads(response.resource))
 
     def add_message(self, message: BaseMessage) -> None:
-        """Add new message to the store
+        """
+        Add new message to the store.
 
         Args:
-            message: A BaseMessage object to store.
+            message (BaseMessage): A BaseMessage object to store.
         """
         asyncio.run_coroutine_threadsafe(self.aadd_message(message), self.loop).result()
 
     async def aadd_message(self, message: BaseMessage) -> None:
-        """Add a Message object to the store.
+        """
+        Add a Message object to the store asynchronously.
 
         Args:
-            message: A BaseMessage object to store.
+            message (BaseMessage): A BaseMessage object to store.
         """
         history = await self.aget_messages()
         history.append(message)
         await self.set_context_async(value=json.dumps([m.dict() for m in history]))
 
     async def set_context_async(self, value: str) -> None:
+        """
+        Set the context variable value asynchronously.
+
+        Args:
+            value (str): The value to set for the context variable.
+        """
         try:
             from lime_python import Command, CommandStatus, CommandMethod
         except (ImportError, ModuleNotFoundError):
@@ -108,19 +131,34 @@ class BlipMessageHistory(BaseChatMessageHistory):
             )
         )
         if response.status == CommandStatus.FAILURE:
-            raise Exception(
-                f"Failed updating context variable {self.variable_name} for {self.session_id}"
-            )
+            raise Exception(f"Failed updating context variable {self.variable_name} for {self.session_id}")
         return
 
     def clear(self) -> None:
+        """
+        Clear the chat history.
+        """
         asyncio.run_coroutine_threadsafe(self.aclear(), self.loop).result()
 
     async def aclear(self) -> None:
+        """
+        Clear the chat history asynchronously.
+        """
         await self.set_context_async(value=json.dumps([]))
 
 
 class BlipRunnableWithMessageHistory(RunnableWithMessageHistory):
+    """
+    Runnable with message history that utilizes Blip for storing chat messages.
+
+    Args:
+        client (BlipClientWrapper): The client wrapper for interacting with Blip.
+        runnable (Union[Runnable, LanguageModelLike]): The runnable or language model to use.
+        input_messages_key (Optional[str], optional): The key for input messages. Defaults to 'input_message'.
+        history_messages_key (Optional[str], optional): The key for history messages. Defaults to 'chat_history'.
+        **kwargs (Any): Additional keyword arguments.
+    """
+
     def __init__(
             self,
             client: BlipClientWrapper,
@@ -136,6 +174,17 @@ class BlipRunnableWithMessageHistory(RunnableWithMessageHistory):
             history_messages_key: Optional[str] = 'chat_history',
             **kwargs: Any
     ):
+        """
+        Initialize the BlipRunnableWithMessageHistory.
+
+        Args:
+            client (BlipClientWrapper): The client wrapper for interacting with Blip.
+            runnable (Union[Runnable, LanguageModelLike]): The runnable or language model to use.
+            input_messages_key (Optional[str], optional): The key for input messages. Defaults to 'input_message'.
+            history_messages_key (Optional[str], optional): The key for history messages. Defaults to 'chat_history'.
+            **kwargs (Any): Additional keyword arguments.
+        """
+
         def get_session_history(session_id: str):
             return BlipMessageHistory(client=client, session_id=session_id)
 

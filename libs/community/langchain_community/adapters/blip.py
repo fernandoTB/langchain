@@ -24,4 +24,6 @@ def convert_message_from_blip(message: LimeMessage) -> HumanMessage:
                 content.append({"type": "text", "text": content["text"]})
             if 'title' in content:
                 content.append({"type": "text", "text": content["title"]})
+        else:
+            content = str(content)
     return HumanMessage(content=content)

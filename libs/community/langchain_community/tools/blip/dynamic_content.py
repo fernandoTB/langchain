@@ -1,15 +1,9 @@
 from __future__ import annotations
-
 import json
 from enum import Enum
-from typing import Annotated
-from typing import Any
-from typing import Literal, Optional
-from typing import Type
-
+from typing import Annotated, Any, Literal, Optional, Type
 from pydantic import Field
 from pydantic.v1 import BaseModel
-
 from langchain_community.utilities.blip import BlipClientWrapper
 from langchain_core.callbacks import CallbackManagerForToolRun
 from langchain_core.runnables import RunnableConfig
@@ -29,6 +23,7 @@ class MessageMimetypes(str, Enum):
 
 
 class CollectionPlainTextItem(BaseModel):
+    """Model for a plain text item in a collection message."""
     type: Literal[MessageMimetypes.PLAIN_TEXT] = Field(
         default=MessageMimetypes.PLAIN_TEXT,
         description=f'The plain text content type, must always be: {MessageMimetypes.PLAIN_TEXT.value}.'
@@ -37,6 +32,7 @@ class CollectionPlainTextItem(BaseModel):
 
 
 class ImageContent(BaseModel):
+    """Model for image content."""
     title: str
     text: str
     type: Literal[MessageMimetypes.IMAGE] = Field(
@@ -48,6 +44,7 @@ class ImageContent(BaseModel):
 
 
 class CollectionStaticImageItem(BaseModel):
+    """Model for a static image item in a collection message."""
     type: Literal[MessageMimetypes.MEDIA_LINK] = Field(
         default=MessageMimetypes.MEDIA_LINK,
         description=f'The image item type for collection message, must always be: {MessageMimetypes.MEDIA_LINK.value}.'
@@ -56,16 +53,19 @@ class CollectionStaticImageItem(BaseModel):
 
 
 class MenuOption(BaseModel):
+    """Model for a single menu option."""
     order: int = Field(description=f'The order number of the menu option.')
     text: str = Field(description=f'The text of the menu option.')
 
 
 class MenuContent(BaseModel):
+    """Model for the content of a menu."""
     text: str = Field(description=f'The text header of the menu.')
     options: list[MenuOption] = Field(description=f'The array of options of the menu.')
 
 
 class CollectionMenuItem(BaseModel):
+    """Model for a menu item in a collection message."""
     type: Literal[MessageMimetypes.MENU] = Field(
         default=MessageMimetypes.MENU,
         description=f'The menu item type, must always be {MessageMimetypes.MENU.value}'
@@ -80,6 +80,7 @@ ContainerItem = Annotated[
 
 
 class ContainerContent(BaseModel):
+    """Model for the content of a container message."""
     itemType: Literal[MessageMimetypes.CONTAINER] = Field(
         default=MessageMimetypes.CONTAINER,
         description=f'The container array type, must always be {MessageMimetypes.CONTAINER.value}'
@@ -88,8 +89,7 @@ class ContainerContent(BaseModel):
 
 
 class LimeCollectionMessage(BaseModel):
-    """Send a collection type message with multiple content"""
-
+    """Model for sending a collection type message with multiple content."""
     type: Literal[MessageMimetypes.COLLECTION] = Field(
         default=MessageMimetypes.COLLECTION,
         description=f'The collection message lime type, must always be {MessageMimetypes.COLLECTION.value}'
@@ -98,8 +98,7 @@ class LimeCollectionMessage(BaseModel):
 
 
 class LimePlainTextMessage(BaseModel):
-    """Send a plain text type message"""
-
+    """Model for sending a plain text type message."""
     type: Literal[MessageMimetypes.PLAIN_TEXT] = Field(
         default=MessageMimetypes.PLAIN_TEXT,
         description=f'The collection message lime type, must always be {MessageMimetypes.PLAIN_TEXT.value}'
@@ -108,8 +107,7 @@ class LimePlainTextMessage(BaseModel):
 
 
 class LimeMediaLinkMessage(BaseModel):
-    """Send an image type message"""
-
+    """Model for sending an image type message."""
     type: Literal[MessageMimetypes.MEDIA_LINK] = Field(
         default=MessageMimetypes.MEDIA_LINK,
         description=f'The collection message lime type, must always be {MessageMimetypes.MEDIA_LINK.value}'
@@ -118,6 +116,7 @@ class LimeMediaLinkMessage(BaseModel):
 
 
 class BlipMessageSchema(BaseModel):
+    """Schema for Blip messages."""
     message: LimeCollectionMessage | LimePlainTextMessage | LimeMediaLinkMessage = Field(
         description='The message to be sent to the user.',
         discriminator='type'
@@ -125,6 +124,7 @@ class BlipMessageSchema(BaseModel):
 
 
 class SendDynamicContentTool(BaseTool):
+    """Tool for sending dynamic content as chat messages."""
     name: str = "send_dynamic_content"
     description: str = (
         "Send a chat message to user using dynamic content."
@@ -140,7 +140,18 @@ class SendDynamicContentTool(BaseTool):
             message: LimeCollectionMessage,
             config: RunnableConfig,
             run_manager: Optional[CallbackManagerForToolRun]
-    ) -> Any:
+    ) -> str:
+        """
+        Synchronously run the tool to send a message.
+
+        Args:
+            message (LimeCollectionMessage): The message to be sent.
+            config (RunnableConfig): Configuration for the run.
+            run_manager (Optional[CallbackManagerForToolRun]): Optional callback manager for the tool run.
+
+        Returns:
+            str: Result of the message sending operation.
+        """
         try:
             from lime_python import Identity, Message as BlipMessage
         except (ImportError, ModuleNotFoundError):
@@ -150,7 +161,6 @@ class SendDynamicContentTool(BaseTool):
             )
 
         user_id = config['configurable'].get('blip_user_id')
-
         if user_id is None:
             raise ValueError(
                 "Missing blip_user_id key in config['configurable'] "
@@ -168,7 +178,18 @@ class SendDynamicContentTool(BaseTool):
             message: LimeCollectionMessage,
             config: RunnableConfig,
             run_manager: Optional[CallbackManagerForToolRun]
-    ) -> Any:
+    ) -> str:
+        """
+        Asynchronously run the tool to send a message.
+
+        Args:
+            message (LimeCollectionMessage): The message to be sent.
+            config (RunnableConfig): Configuration for the run.
+            run_manager (Optional[CallbackManagerForToolRun]): Optional callback manager for the tool run.
+
+        Returns:
+            str: Result of the message sending operation.
+        """
         try:
             from lime_python import Identity, Message as BlipMessage
         except (ImportError, ModuleNotFoundError):
@@ -187,7 +208,6 @@ class SendDynamicContentTool(BaseTool):
 
         content = json.loads(message.json())
         content = {"to": user_id, **content}
-
         self.client.send_message(
             message=BlipMessage.from_json(content)
         )
